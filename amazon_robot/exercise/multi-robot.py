@@ -1,8 +1,10 @@
 import rclpy
+import numpy as np
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from amazon_robot_msg.action import FollowTargets
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Quaternion
 
 '''
 JdeMultirobot 
@@ -74,35 +76,44 @@ Have fun!
 
 
 pallets = {
-    'pallet_1': {'x_pose': 3.58, 'y_pose': 0.49, 'z_pose': 0.01},
-    'pallet_2': {'x_pose': 3.60, 'y_pose': -1.56, 'z_pose': 0.01},
-    'pallet_3': {'x_pose': 3.61, 'y_pose': -3.29, 'z_pose': 0.01},
-    'pallet_4': {'x_pose': 3.58, 'y_pose': -5.07, 'z_pose': 0.01},
-    'pallet_5': {'x_pose': 3.61, 'y_pose': -6.91, 'z_pose': 0.01},
-    'pallet_6': {'x_pose': 3.72, 'y_pose': -8.88, 'z_pose': 0.01},
+    'pallet_1': {'x_pose': 3.64, 'y_pose': 0.63, 'z_pose': 0.01, 'rotation': 1.5708},
+    'pallet_2': {'x_pose': 3.59, 'y_pose': -1.11, 'z_pose': 0.01, 'rotation': 1.5708},
+    'pallet_3': {'x_pose': 3.51, 'y_pose': -2.84, 'z_pose': 0.01, 'rotation': 1.5708},
+    'pallet_4': {'x_pose': 3.49, 'y_pose': -4.68, 'z_pose': 0.01, 'rotation': 1.5708},
+    'pallet_5': {'x_pose': 3.64, 'y_pose': -6.91, 'z_pose': 0.01, 'rotation': 1.5708},
+    'pallet_6': {'x_pose': 3.64, 'y_pose': -8.88, 'z_pose': 0.01, 'rotation': 1.5708},
 }
 
 storage_locations = {
-    'storage_location_1': {'x_pose': -5.84, 'y_pose': -3.35, 'z_pose': 0.01},
-    'storage_location_2': {'x_pose': -5.84, 'y_pose': 1.12, 'z_pose': 0.01},
-    'storage_location_3': {'x_pose': -5.84, 'y_pose': -7.76, 'z_pose': 0.01},
+    'storage_location_1': {'x_pose': -5.84, 'y_pose': -3.35, 'z_pose': 0.01, 'rotation': 0},
+    'storage_location_2': {'x_pose': -5.84, 'y_pose': 1.12, 'z_pose': 0.01, 'rotation': 0},
+    'storage_location_3': {'x_pose': -5.84, 'y_pose': -7.76, 'z_pose': 0.01, 'rotation': 0},
 }
 
-
-
 free_area = {
-    'right_end_of_corridor': {'x_pose': 1.35, 'y_pose': -6.78, 'z_pose': 0.01},
-    'left_end_of_corridor': {'x_pose': 0.92, 'y_pose': 6.45, 'z_pose': 0.01},
+    'right_end_of_corridor': {'x_pose': 1.35, 'y_pose': -6.78, 'z_pose': 0.01, 'rotation': 0},
+    'left_end_of_corridor': {'x_pose': 0.92, 'y_pose': 6.45, 'z_pose': 0.01, 'rotation': 0},
 }
 
 lift_stages = {'load': 2, 'unload': -2, 'half_load': 1, 'half_unload': -1, 'unchanged': 0}
 
+def quaternion_from_euler(roll, pitch, yaw):
+    qx = np.sin(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) - np.cos(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
+    qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
+    qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
+    return {'x': qx, 'y': qy, 'z': qz, 'w': qw}
 
-def get_pose_stamped(x_pose, y_pose, z_pose):
+def get_pose_stamped(x_pose, y_pose, z_pose, rotation):
     pose_stamped = PoseStamped()
     pose_stamped.pose.position.x = x_pose
     pose_stamped.pose.position.y = y_pose
     pose_stamped.pose.position.z = z_pose
+    q = quaternion_from_euler(0, 0, rotation)
+    pose_stamped.pose.orientation.x = q['x']
+    pose_stamped.pose.orientation.y = q['y']
+    pose_stamped.pose.orientation.z = q['z']
+    pose_stamped.pose.orientation.w = q['w']
     return pose_stamped
 
 
@@ -115,23 +126,21 @@ class WarehouseController:
 
     # TODO: Use this function to create your plan
     def create_plan(self):
-        poses_robot1 = [get_pose_stamped(**free_area['right_end_of_corridor']),
-                        get_pose_stamped(**pallets['pallet_6']),
+        poses_robot1 = [get_pose_stamped(**pallets['pallet_5']),
                         get_pose_stamped(**storage_locations['storage_location_3']),
-                        get_pose_stamped(**pallets['pallet_5']),
+                        get_pose_stamped(**pallets['pallet_4']),
                         get_pose_stamped(**storage_locations['storage_location_3']),
                         get_pose_stamped(**free_area['right_end_of_corridor'])
                         ]
 
-        loads_robot1 = [lift_stages['unchanged'], lift_stages['load'], lift_stages['unload'], lift_stages['load'], lift_stages['unload'], lift_stages['unchanged']]
-        poses_robot2 = [get_pose_stamped(**free_area['left_end_of_corridor']),
-                        get_pose_stamped(**pallets['pallet_1']),
+        loads_robot1 = [lift_stages['load'], lift_stages['unload'], lift_stages['load'], lift_stages['unload'], lift_stages['unchanged']]
+        poses_robot2 = [get_pose_stamped(**pallets['pallet_1']),
                         get_pose_stamped(**storage_locations['storage_location_2']),
                         get_pose_stamped(**pallets['pallet_2']),
                         get_pose_stamped(**storage_locations['storage_location_1']),
                         get_pose_stamped(**free_area['left_end_of_corridor'])]
 
-        loads_robot2 = [lift_stages['unchanged'], lift_stages['load'], lift_stages['unload'], lift_stages['load'], lift_stages['unload'],  lift_stages['unchanged']]
+        loads_robot2 = [lift_stages['load'], lift_stages['unload'], lift_stages['load'], lift_stages['unload'],  lift_stages['unchanged']]
         #
         # print("Poses List ")
         # print(poses_robot1)
@@ -197,7 +206,7 @@ class FollowTargetActionClient(Node):
 
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
-        # self.get_logger().info('Currently Executing: {0} out of {0} targets'.format(feedback.current_waypoint, self.goal_length))
+        #self.get_logger().info(feedback)
 
 
 
